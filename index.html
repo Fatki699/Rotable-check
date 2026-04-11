@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rotable 零件查詢系統</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+    <style>
+        body { font-family: -apple-system, sans-serif; background: #f4f4f9; margin: 0; padding: 20px; }
+        .container { max-width: 500px; margin: auto; }
+        h1 { text-align: center; color: #333; font-size: 1.5rem; }
+        #reader { background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        #result-card { display: none; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.15); margin-top: 20px; }
+        .info-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #eee; }
+        .info-label { color: #666; font-weight: bold; }
+        .info-value { color: #000; text-align: right; }
+        .expiry-warning { color: #d32f2f; font-weight: bold; }
+        button { width: 100%; padding: 15px; background: #007aff; color: white; border: none; border-radius: 8px; font-size: 1rem; margin-top: 20px; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Rotable ID 掃描查詢</h1>
+    
+    <div id="reader"></div>
+
+    <div id="result-card">
+        <h2 id="res-id" style="margin-top:0; color: #007aff;"></h2>
+        <div class="info-row"><span class="info-label">Part Number</span><span class="info-value" id="res-pn"></span></div>
+        <div class="info-row"><span class="info-label">Serial No</span><span class="info-value" id="res-sn"></span></div>
+        <div class="info-row"><span class="info-label">Location</span><span class="info-value" id="res-loc"></span></div>
+        <div class="info-row"><span class="info-label">Expiry Date</span><span class="info-value" id="res-expiry"></span></div>
+        <div class="info-row"><span class="info-label">Owner</span><span class="info-value" id="res-owner"></span></div>
+        <div class="info-row"><span class="info-label">Status</span><span class="info-value" id="res-status"></span></div>
+        <button onclick="restartScan()">重新掃描</button>
+    </div>
+</div>
+
+<script>
+// 1. 零件資料庫 (根據你提供的清單)
+const inventory = [
+    { id: "RO.549207", pn: "CTECH1MR240", loc: "EWS (BAHRAIN)", sn: "0724106585", expiry: "2026-09-30", owner: "PDX", status: "In Stock" },
+    { id: "RO.58390", pn: "CTECH1MR240", loc: "QB-2", sn: "1119106217", expiry: "2027-03-31", owner: "HXA", status: "Hard Linked" },
+    { id: "RO.55522", pn: "CTECH1MR240", loc: "QB-2", sn: "1119106239", expiry: "2026-09-30", owner: "HX", status: "Hard Linked" },
+    { id: "RO.87107", pn: "CTECH1MR240", loc: "QB-2", sn: "1119106285", expiry: "2027-01-31", owner: "HX", status: "Hard Linked" },
+    { id: "RO.87111", pn: "CTECH2FR100A", loc: "QB-2", sn: "0120105064", expiry: "2027-02-28", owner: "HX", status: "Hard Linked" },
+    { id: "RO.58393", pn: "CTECH2FR100A", loc: "QB-2", sn: "0120105080", expiry: "2026-08-31", owner: "HX", status: "Hard Linked" }
+];
+
+// 2. 掃描成功處理
+function onScanSuccess(decodedText) {
+    // 停止掃描避免重覆觸發
+    html5QrcodeScanner.clear();
+
+    // 在資料庫中尋找 (不分大小寫且去掉空白)
+    const result = inventory.find(item => item.id.toUpperCase() === decodedText.trim().toUpperCase());
+
+    if (result) {
+        showResult(result);
+    } else {
+        alert("找不到資料: " + decodedText);
+        restartScan();
+    }
+}
+
+function showResult(item) {
+    document.getElementById('res-id').innerText = item.id;
+    document.getElementById('res-pn').innerText = item.pn;
+    document.getElementById('res-sn').innerText = item.sn;
+    document.getElementById('res-loc').innerText = item.loc;
+    document.getElementById('res-expiry').innerText = item.expiry;
+    document.getElementById('res-owner').innerText = item.owner;
+    document.getElementById('res-status').innerText = item.status;
+
+    // 簡單的過期提醒
+    const expiryDate = new Date(item.expiry);
+    const today = new Date();
+    if (expiryDate < today) {
+        document.getElementById('res-expiry').classList.add('expiry-warning');
+        document.getElementById('res-expiry').innerText += " (已過期!)";
+    }
+
+    document.getElementById('reader').style.display = 'none';
+    document.getElementById('result-card').style.display = 'block';
+}
+
+function restartScan() {
+    location.reload(); 
+}
+
+// 3. 啟動掃描器
+let html5QrcodeScanner = new Html5QrcodeScanner("reader", { 
+    fps: 15, 
+    qrbox: {width: 250, height: 250},
+    aspectRatio: 1.0 
+});
+html5QrcodeScanner.render(onScanSuccess);
+</script>
+
+</body>
+</html>
