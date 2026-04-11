@@ -2,118 +2,127 @@
 <html lang="zh-Hant">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Rotable 實時查詢系統</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Rotable Scanner Pro</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
     <style>
-        body { font-family: -apple-system, sans-serif; background: #f4f4f9; margin: 0; padding: 20px; }
+        :root { --primary: #007aff; --bg: #f2f2f7; }
+        body { font-family: -apple-system, system-ui, sans-serif; background: var(--bg); margin: 0; padding: 15px; }
         .container { max-width: 500px; margin: auto; }
-        h1 { text-align: center; color: #333; font-size: 1.2rem; }
-        #reader { background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
-        #loading-status { text-align: center; color: #666; margin-bottom: 10px; font-size: 0.9rem; padding: 10px; background: #fff; border-radius: 8px; }
-        #result-card { display: none; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.15); margin-top: 20px; }
-        .info-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #eee; }
-        .info-label { color: #666; font-weight: bold; font-size: 0.85rem; min-width: 100px; }
-        .info-value { color: #000; text-align: right; flex: 1; margin-left: 10px; word-break: break-all; }
-        button { width: 100%; padding: 15px; background: #007aff; color: white; border: none; border-radius: 8px; font-size: 1rem; margin-top: 20px; cursor: pointer; }
-        .warning { color: #d32f2f; font-weight: bold; }
+        h1 { text-align: center; color: #1c1c1e; font-size: 1.4rem; margin-bottom: 10px; }
+        
+        /* 狀態列 */
+        #status-bar { text-align: center; padding: 8px; border-radius: 8px; margin-bottom: 15px; font-weight: bold; font-size: 0.9rem; background: #fff; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        .syncing { color: #8e8e93; }
+        .success { color: #34c759; border: 1px solid #34c759; }
+        .error { color: #ff3b30; border: 1px solid #ff3b30; }
+
+        /* 掃描框 */
+        #reader { background: #000; border-radius: 16px; overflow: hidden; box-shadow: 0 8px 20px rgba(0,0,0,0.2); }
+        
+        /* 結果卡片 */
+        #result-card { display: none; background: white; padding: 20px; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); margin-top: 20px; animation: slideUp 0.3s ease; }
+        @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        
+        .id-header { font-size: 1.5rem; color: var(--primary); font-weight: 800; border-bottom: 2px solid var(--bg); padding-bottom: 10px; margin-bottom: 15px; }
+        .info-row { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #f2f2f7; }
+        .label { color: #8e8e93; font-size: 0.85rem; font-weight: 600; text-transform: uppercase; }
+        .value { color: #1c1c1e; font-weight: 500; text-align: right; flex: 1; margin-left: 20px; }
+        
+        button { width: 100%; padding: 16px; background: var(--primary); color: white; border: none; border-radius: 12px; font-size: 1.1rem; font-weight: bold; margin-top: 20px; -webkit-tap-highlight-color: transparent; }
+        button:active { opacity: 0.8; transform: scale(0.98); }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h1>Rotable 零件查詢 (Google 實時版)</h1>
-    <div id="loading-status">正在同步試算表資料，請稍候...</div>
+    <h1>零件掃描查詢</h1>
+    <div id="status-bar" class="syncing">🔄 正在同步 Google Sheet 資料...</div>
     
     <div id="reader"></div>
 
     <div id="result-card">
-        <h2 id="res-id" style="margin-top:0; color: #007aff; border-bottom: 2px solid #007aff; padding-bottom: 5px;"></h2>
-        <div class="info-row"><span class="info-label">Part Number</span><span class="info-value" id="res-pn"></span></div>
-        <div class="info-row"><span class="info-label">Serial No</span><span class="info-value" id="res-sn"></span></div>
-        <div class="info-row"><span class="info-label">Location</span><span class="info-value" id="res-loc"></span></div>
-        <div class="info-row"><span class="info-label">Store</span><span class="info-value" id="res-store"></span></div>
-        <div class="info-row"><span class="info-label">Expiry Date</span><span class="info-value" id="res-expiry"></span></div>
-        <div class="info-row"><span class="info-label">Owner</span><span class="info-value" id="res-owner"></span></div>
-        <div class="info-row"><span class="info-label">Project No</span><span class="info-value" id="res-project"></span></div>
-        <button onclick="restartScan()">重新掃描</button>
+        <div id="res-id" class="id-header"></div>
+        <div class="info-row"><span class="label">Part Number</span><span id="res-pn" class="value"></span></div>
+        <div class="info-row"><span class="label">Serial No</span><span id="res-sn" class="value"></span></div>
+        <div class="info-row"><span class="label">Location</span><span id="res-loc" class="value"></span></div>
+        <div class="info-row"><span class="label">Expiry Date</span><span id="res-expiry" class="value"></span></div>
+        <div class="info-row"><span class="label">Owner</span><span id="res-owner" class="value"></span></div>
+        <div class="info-row"><span class="label">Status</span><span id="res-status" class="value"></span></div>
+        <button onclick="restartScan()">下一個掃描</button>
     </div>
 </div>
 
 <script>
-// 這裡已經填好了你的 API 網址
-const API_URL = "https://script.google.com/macros/s/AKfycbwkz2YmeTwGcwgnwZEzT5l1OALl4QO9x64CHEZ3A2AwNIgzz3LS7Y5bkoSWudWZ0pkDHw/exec"; 
+// --- 重要：將你獲得的 CSV 連結貼在下方引號內 ---
+const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQXRUvH5sxOhyAX7MNM7R7WqmdfGOkbBHeCRclGPZLyU17t7MJgQy7ctwAOR-tNH59SoEzib_I-9uwP/pub?output=csv";
 
 let inventory = [];
 
-// 從 Google Sheet 抓取資料
-async function loadData() {
-    const statusEl = document.getElementById('loading-status');
-    try {
-        const response = await fetch(API_URL);
-        inventory = await response.json();
-        statusEl.innerText = `✅ 已成功讀取 ${inventory.length} 筆資料`;
-        statusEl.style.color = "green";
-    } catch (e) {
-        statusEl.innerText = "❌ 資料同步失敗，請檢查網路或 API 部署設定";
-        statusEl.style.color = "red";
-        console.error(e);
-    }
+// 1. 從 Google Sheet 抓取數據
+function loadSheetData() {
+    Papa.parse(CSV_URL, {
+        download: true,
+        header: true,
+        skipEmptyLines: true,
+        complete: function(results) {
+            inventory = results.data;
+            const statusBar = document.getElementById('status-bar');
+            statusBar.innerText = `✅ 系統就緒 (共 ${inventory.length} 項零件)`;
+            statusBar.className = "success";
+        },
+        error: function() {
+            const statusBar = document.getElementById('status-bar');
+            statusBar.innerText = "❌ 無法讀取資料，請檢查 CSV 網址或網路";
+            statusBar.className = "error";
+        }
+    });
 }
 
-// 處理掃描結果
+// 2. 掃描成功處理邏輯
 function onScanSuccess(decodedText) {
-    // 停止掃描
+    // 停止相機以節省電力
     html5QrcodeScanner.clear();
+    const targetID = decodedText.trim().toUpperCase();
     
-    const id = decodedText.trim().toUpperCase();
-    
-    // 搜尋資料庫 (這裡對應你表格中的標題名稱)
-    const item = inventory.find(i => {
-        // 確保欄位名稱跟 Google Sheet 第一行完全一樣
-        const rotableId = i["Rotable ID"] || i["RotableID"]; 
-        return String(rotableId).trim().toUpperCase() === id;
+    // 在數據中搜尋 (自動匹配第一列標題)
+    const item = inventory.find(row => {
+        const firstColumnKey = Object.keys(row)[0];
+        return String(row[firstColumnKey]).trim().toUpperCase() === targetID;
     });
 
     if (item) {
-        document.getElementById('res-id').innerText = item["Rotable ID"] || id;
+        document.getElementById('res-id').innerText = targetID;
         document.getElementById('res-pn').innerText = item["Part Number"] || "-";
         document.getElementById('res-sn').innerText = item["Serial No"] || "-";
         document.getElementById('res-loc').innerText = item["Location"] || "-";
-        document.getElementById('res-store').innerText = item["Store"] || "-";
+        document.getElementById('res-expiry').innerText = item["Expiry Date"] || "-";
         document.getElementById('res-owner').innerText = item["Owner"] || "-";
-        document.getElementById('res-project').innerText = item["Project No"] || "-";
-        
-        // 處理日期顯示
-        const expiry = item["Expiry Date"];
-        const expiryEl = document.getElementById('res-expiry');
-        expiryEl.innerText = expiry ? new Date(expiry).toLocaleDateString() : "-";
-        
-        // 顯示結果，隱藏相機
+        document.getElementById('res-status').innerText = item["Event"] || "N/A";
+
         document.getElementById('reader').style.display = 'none';
         document.getElementById('result-card').style.display = 'block';
     } else {
-        alert("找不到此編號: " + id + "\n請確認 Google Sheet 中是否存在此 Rotable ID。");
+        alert("找不到此 ID: " + targetID + "\n請確保資料已輸入 Google Sheet 並標題為 Rotable ID");
         restartScan();
     }
 }
 
 function restartScan() {
-    // 重新整理頁面以重啟掃描器
-    location.reload();
+    location.reload(); // 重新整理頁面是最簡單且最穩定的重啟掃描方式
 }
 
-// 初始化掃描器
+// 3. 初始化掃描器 (針對手機優化)
 let html5QrcodeScanner = new Html5QrcodeScanner("reader", { 
-    fps: 15, 
-    qrbox: {width: 250, height: 250},
-    aspectRatio: 1.0
+    fps: 20, 
+    qrbox: { width: 250, height: 250 },
+    aspectRatio: 1.0,
+    showTorchButtonIfSupported: true // 如果手機支援，顯示手電筒按鈕
 });
 
 html5QrcodeScanner.render(onScanSuccess);
-
-// 執行資料載入
-loadData();
+loadSheetData();
 </script>
 
 </body>
