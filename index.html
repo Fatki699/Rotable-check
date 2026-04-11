@@ -3,36 +3,39 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Rotable Scanner Debug</title>
+    <title>Rotable Scanner Final</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
     <style>
         body { font-family: -apple-system, sans-serif; background: #f2f2f7; margin: 0; padding: 15px; }
         .container { max-width: 500px; margin: auto; }
-        #status-bar { text-align: center; padding: 10px; border-radius: 8px; margin-bottom: 10px; font-weight: bold; background: #fff; border: 1px solid #ccc; }
-        #reader { background: #000; border-radius: 12px; overflow: hidden; }
-        #result-card { display: none; background: white; padding: 20px; border-radius: 16px; margin-top: 15px; box-shadow: 0 5px 15px rgba(0,0,0,0.1); }
-        .info-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #eee; }
-        .label { color: #888; }
-        .value { font-weight: bold; color: #000; }
-        button { width: 100%; padding: 15px; background: #007aff; color: white; border: none; border-radius: 10px; font-size: 1rem; margin-top: 15px; }
+        #status-bar { text-align: center; padding: 12px; border-radius: 10px; margin-bottom: 10px; font-weight: bold; background: white; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+        .success { color: #34c759; border: 2px solid #34c759; }
+        .error { color: #ff3b30; border: 2px solid #ff3b30; }
+        #reader { background: black; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
+        #result-card { display: none; background: white; padding: 20px; border-radius: 20px; margin-top: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
+        .id-title { color: #007aff; font-size: 1.4rem; margin: 0 0 15px 0; border-bottom: 2px solid #f2f2f7; padding-bottom: 10px; }
+        .info-row { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #f9f9f9; }
+        .label { color: #8e8e93; font-size: 0.9rem; font-weight: 500; }
+        .value { color: #1c1c1e; font-weight: 600; text-align: right; word-break: break-all; margin-left: 10px; }
+        button { width: 100%; padding: 18px; background: #007aff; color: white; border: none; border-radius: 14px; font-size: 1.1rem; font-weight: bold; margin-top: 20px; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <div id="status-bar">正在載入試算表...</div>
+    <div id="status-bar">🔄 正在連線數據庫...</div>
     <div id="reader"></div>
     <div id="result-card">
-        <h2 id="res-id" style="color:#007aff; margin:0 0 10px 0;"></h2>
-        <div id="details"></div>
-        <button onclick="location.reload()">重新掃描</button>
+        <h2 id="res-id" class="id-title"></h2>
+        <div id="details-list"></div>
+        <button onclick="location.reload()">掃描下一個</button>
     </div>
 </div>
 
 <script>
-// 使用你提供的 CSV 網址
-const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQXRUvH5sxOhyAX7MNM7R7WqmdfGOkbBHeCRclGPZLyU17t7MJgQy7ctwAOR-tNH59SoEzib_I-9uwP/pub?output=csv";
+// 使用你提供的最新正確連結
+const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQXRUvH5sx0hyAX7MNM7R7WqmdfGOkbBHeCRclGPZLyU17t7MJgQy7ctwAOR-tNH59SoEzib_I-9uwP/pub?output=csv";
 
 let inventory = [];
 
@@ -45,42 +48,41 @@ function loadData() {
             inventory = results.data;
             const bar = document.getElementById('status-bar');
             if (inventory.length > 0) {
-                bar.innerText = `✅ 同步成功 (${inventory.length} 筆)`;
-                bar.style.color = "green";
-                console.log("資料預覽:", inventory[0]); // 調試用
+                bar.innerText = `✅ 系統就緒 (已載入 ${inventory.length} 筆)`;
+                bar.className = "success";
             } else {
-                bar.innerText = "⚠️ 抓到 0 筆資料，請檢查試算表內容";
-                bar.style.color = "orange";
+                bar.innerText = "⚠️ 讀取成功但無資料，請檢查試算表內容";
+                bar.className = "error";
             }
         },
-        error: function(err) {
-            document.getElementById('status-bar').innerText = "❌ 讀取失敗，請確認網路或連結";
-            document.getElementById('status-bar').style.color = "red";
+        error: function() {
+            document.getElementById('status-bar').innerText = "❌ 無法讀取資料，請檢查網路或發佈設定";
+            document.getElementById('status-bar').className = "error";
         }
     });
 }
 
 function onScanSuccess(decodedText) {
     html5QrcodeScanner.clear();
-    const id = decodedText.trim().toUpperCase();
+    const scancode = decodedText.trim().toUpperCase();
     
-    // 遍歷所有欄位來比對 ID (防止標題名稱不匹配的問題)
+    // 全文搜尋：只要試算表任何一格包含這個編號就抓出來
     const item = inventory.find(row => {
-        return Object.values(row).some(val => String(val).trim().toUpperCase() === id);
+        return Object.values(row).some(val => String(val).trim().toUpperCase() === scancode);
     });
 
     if (item) {
-        document.getElementById('res-id').innerText = "編號: " + id;
-        const detailsDiv = document.getElementById('details');
-        detailsDiv.innerHTML = ""; // 清空舊內容
+        document.getElementById('res-id').innerText = "編號: " + scancode;
+        const list = document.getElementById('details-list');
+        list.innerHTML = ""; // 清空
 
-        // 自動把這行資料的所有欄位都列出來
-        for (let key in item) {
-            if (item[key]) {
-                detailsDiv.innerHTML += `
+        // 自動生成所有標題與對應內容
+        for (let [key, value] of Object.entries(item)) {
+            if (key && value && key.toLowerCase() !== "rotable id") {
+                list.innerHTML += `
                     <div class="info-row">
                         <span class="label">${key}</span>
-                        <span class="value">${item[key]}</span>
+                        <span class="value">${value}</span>
                     </div>`;
             }
         }
@@ -88,13 +90,20 @@ function onScanSuccess(decodedText) {
         document.getElementById('reader').style.display = 'none';
         document.getElementById('result-card').style.display = 'block';
     } else {
-        alert("找不到資料: " + id);
+        alert("找不到此編號: " + scancode);
         location.reload();
     }
 }
 
-let html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 15, qrbox: 250 });
+// 啟動掃描器
+let html5QrcodeScanner = new Html5QrcodeScanner("reader", { 
+    fps: 15, 
+    qrbox: 250,
+    aspectRatio: 1.0
+});
 html5QrcodeScanner.render(onScanSuccess);
+
+// 執行載入資料
 loadData();
 </script>
 
