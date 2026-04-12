@@ -34,8 +34,8 @@
     </div>
 
 <script>
-// 校正後的 CSV 連結（使用英文字母 O）
-const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQXRUvH5sx0hyAX7MNM7R7WqmdfGOkbBHeCRclGPZLyU17t7MJgQy7ctwAOR-tNH59SoEzib_I-9uwP/pub?output=csv";
+// 正確的 CSV 發佈網址
+const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQXRUvH5sxOhyAX7MNM7R7WqmdfGOkbBHeCRclGPZLyU17t7MJgQy7ctwAOR-tNH59SoEzib_I-9uwP/pub?output=csv";
 let inventory = [];
 
 function loadData() {
@@ -45,7 +45,7 @@ function loadData() {
             inventory = r.data;
             const b = document.getElementById('status-bar');
             if (inventory.length > 0) { b.innerText = "✅ 系統就緒"; b.className = "success"; }
-            else { b.innerText = "⚠️ 試算表無資料"; b.className = "error"; }
+            else { b.innerText = "⚠️ 讀取成功但無資料"; b.className = "error"; }
         },
         error: function() { 
             document.getElementById('status-bar').innerText = "❌ 數據連線失敗"; 
