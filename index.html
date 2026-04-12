@@ -34,6 +34,7 @@
     </div>
 
 <script>
+// 校正後的 CSV 連結（使用英文字母 O）
 const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQXRUvH5sxOhyAX7MNM7R7WqmdfGOkbBHeCRclGPZLyU17t7MJgQy7ctwAOR-tNH59SoEzib_I-9uwP/pub?output=csv";
 let inventory = [];
 
@@ -47,7 +48,7 @@ function loadData() {
             else { b.innerText = "⚠️ 試算表無資料"; b.className = "error"; }
         },
         error: function() { 
-            document.getElementById('status-bar').innerText = "❌ 連線失敗"; 
+            document.getElementById('status-bar').innerText = "❌ 數據連線失敗"; 
             document.getElementById('status-bar').className = "error"; 
         }
     });
@@ -55,6 +56,7 @@ function loadData() {
 
 function searchAndShow(id) {
     const tid = id.trim().toUpperCase();
+    if (!tid) return;
     const item = inventory.find(row => Object.values(row).some(v => String(v).trim().toUpperCase() === tid));
     if (item) {
         document.getElementById('res-id').innerText = tid;
@@ -66,7 +68,7 @@ function searchAndShow(id) {
         document.getElementById('reader').style.display = 'none';
         document.getElementById('manual-area').style.display = 'none';
         document.getElementById('result-card').style.display = 'block';
-    } else { alert("找不到編號"); }
+    } else { alert("找不到編號: " + tid); }
 }
 
 let scanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
