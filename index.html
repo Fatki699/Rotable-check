@@ -25,7 +25,79 @@
 
 <div class="container">
     <div id="status-bar">🔄 正在連線數據庫...</div>
-    <div id="reader"></div>
+    <div id="reader"></    <div style="margin: 15px 0; display: flex; gap: 8px;">
+        <input type="text" id="manual-id" placeholder="手動輸入 ID (例如: RO.87112)" 
+               style="flex: 1; padding: 12px; border: 2px solid #ddd; border-radius: 10px; font-size: 1rem; outline: none;">
+        <button onclick="manualSearch()" 
+                style="width: auto; margin: 0; padding: 0 20px; background: #34c759; border-radius: 10px;">
+            查詢
+        </button>
+    </div>
+    ```
+
+---
+
+### 下一步：還需要修改 Script 邏輯
+只貼上面的 HTML 雖然會出現框框，但按了沒反應。請再往下捲動到代碼的最末端，找到 `function onScanSuccess` 之後的內容，**直接將最後的整個 `<script>` 部分替換為以下內容**：
+
+```javascript
+<script>
+let CSV_URL = "你的CSV網址"; // 這裡記得保留你原本那串長網址
+let inventory = [];
+
+function loadData() {
+    Papa.parse(CSV_URL, {
+        download: true, header: true, skipEmptyLines: true,
+        complete: function(results) {
+            inventory = results.data;
+            document.getElementById('status-bar').innerText = `✅ 系統就緒 (已載入 ${inventory.length} 筆)`;
+            document.getElementById('status-bar').className = "success";
+        }
+    });
+}
+
+// 核心搜尋功能
+function searchAndShow(id) {
+    const targetID = id.trim().toUpperCase();
+    const item = inventory.find(row => {
+        return Object.values(row).some(val => String(val).trim().toUpperCase() === targetID);
+    });
+
+    if (item) {
+        html5QrcodeScanner.clear(); 
+        document.getElementById('res-id').innerText = targetID;
+        document.getElementById('res-pn').innerText = item["Part Number"] || "-";
+        document.getElementById('res-sn').innerText = item["Serial No"] || "-";
+        document.getElementById('res-loc').innerText = item["Location"] || "-";
+        document.getElementById('res-expiry').innerText = item["Expiry Date"] || "-";
+        document.getElementById('res-owner').innerText = item["Owner"] || "-";
+        
+        // 隱藏掃描器和輸入框
+        document.getElementById('reader').style.display = 'none';
+        document.getElementById('manual-id').parentElement.style.display = 'none';
+        document.getElementById('result-card').style.display = 'block';
+    } else {
+        alert("找不到編號: " + targetID);
+    }
+}
+
+// 掃描成功時呼叫
+function onScanSuccess(decodedText) {
+    searchAndShow(decodedText);
+}
+
+// 按下查詢按鈕時呼叫
+function manualSearch() {
+    const input = document.getElementById('manual-id').value;
+    if (input) searchAndShow(input);
+    else alert("請先輸入編號");
+}
+
+let html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 15, qrbox: 250 });
+html5QrcodeScanner.render(onScanSuccess);
+loadData();
+</script>
+
     <div id="result-card">
         <h2 id="res-id" class="id-title"></h2>
         <div id="details-list"></div>
