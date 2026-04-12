@@ -7,78 +7,89 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
     <style>
-        :root { --primary: #007aff; --success: #34c759; --danger: #ff3b30; }
-        body { font-family: -apple-system, system-ui, sans-serif; background: #f2f2f7; margin: 0; padding: 15px; color: #1c1c1e; }
+        :root { --primary: #007aff; --success: #34c759; --danger: #ff3b30; --bg: #f2f2f7; }
+        body { font-family: -apple-system, system-ui, sans-serif; background: var(--bg); margin: 0; padding: 15px; color: #1c1c1e; }
         
-        /* 狀態欄 */
+        /* 狀態列：增加動畫感 */
         #status-bar { 
-            text-align: center; padding: 15px; border-radius: 12px; 
+            text-align: center; padding: 14px; border-radius: 12px; 
             margin-bottom: 15px; font-weight: 600; background: white; 
-            box-shadow: 0 2px 8px rgba(0,0,0,0.05); transition: 0.3s;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05); transition: all 0.3s ease;
         }
         .loading { border: 2px solid #8e8e93; color: #8e8e93; }
         .success { border: 2px solid var(--success); color: var(--success); background: #f2fff5 !important; }
         .error { border: 2px solid var(--danger); color: var(--danger); background: #fff2f2 !important; }
 
-        /* 掃描區域 */
-        #reader { background: #000; border-radius: 20px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-        
-        /* 輸入區域 */
-        .input-group { margin-top: 15px; display: flex; gap: 10px; }
-        input { 
-            flex: 1; padding: 14px; border: 1.5px solid #d1d1d6; 
-            border-radius: 12px; font-size: 16px; outline: none;
+        /* 掃描容器 */
+        #reader-wrapper { 
+            position: relative; background: #000; border-radius: 20px; 
+            overflow: hidden; box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+            min-height: 300px;
         }
-        input:focus { border-color: var(--primary); }
-        .btn-search { background: var(--success); color: white; border: none; padding: 0 20px; border-radius: 12px; font-weight: bold; }
+        #reader { width: 100%; }
 
-        /* 結果卡片 */
-        #result-card { 
-            display: none; background: white; padding: 24px; 
-            border-radius: 24px; box-shadow: 0 20px 40px rgba(0,0,0,0.1);
-            margin-top: -10px; position: relative; z-index: 10;
+        /* 輸入與按鈕 */
+        .input-group { margin-top: 20px; display: flex; gap: 10px; }
+        input { 
+            flex: 1; padding: 15px; border: 2px solid #d1d1d6; 
+            border-radius: 14px; font-size: 16px; transition: 0.2s;
         }
-        .res-header { color: var(--primary); font-size: 1.5rem; margin-bottom: 15px; border-bottom: 2px solid #f2f2f7; padding-bottom: 10px; }
-        .info-row { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #f2f2f7; }
-        .label { color: #8e8e93; font-size: 0.9rem; }
-        .value { font-weight: 600; text-align: right; }
+        input:focus { border-color: var(--primary); outline: none; background: white; }
+        .btn-search { background: var(--success); color: white; border: none; padding: 0 25px; border-radius: 14px; font-weight: bold; }
+
+        /* 結果顯示 */
+        #result-card { 
+            display: none; background: white; padding: 25px; 
+            border-radius: 24px; box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+            animation: slideUp 0.4s ease-out;
+        }
+        @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        
+        .res-header { color: var(--primary); font-size: 1.4rem; font-weight: 800; margin-bottom: 15px; border-bottom: 2px solid var(--bg); padding-bottom: 10px; }
+        .info-row { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--bg); }
+        .label { color: #8e8e93; font-size: 0.85rem; }
+        .value { font-weight: 600; text-align: right; color: #000; }
         
         .btn-reload { 
-            width: 100%; padding: 16px; background: var(--primary); 
-            color: white; border: none; border-radius: 14px; 
-            font-size: 1.1rem; font-weight: bold; margin-top: 20px;
+            width: 100%; padding: 18px; background: var(--primary); 
+            color: white; border: none; border-radius: 16px; 
+            font-size: 1.1rem; font-weight: bold; margin-top: 25px;
         }
     </style>
 </head>
 <body>
 
-    <div id="status-bar" class="loading">🔄 正在連線資料庫...</div>
+    <div id="status-bar" class="loading">📡 正在同步 Google 資料...</div>
 
-    <div id="reader-container">
-        <div id="reader"></div>
-    </div>
+    <div id="main-ui">
+        <div id="reader-wrapper">
+            <div id="reader"></div>
+        </div>
 
-    <div id="manual-area" class="input-group">
-        <input type="text" id="manual-id" placeholder="手動輸入序號 / ID">
-        <button class="btn-search" onclick="handleManualSearch()">查詢</button>
+        <div class="input-group">
+            <input type="text" id="manual-id" placeholder="輸入序號或掃描條碼">
+            <button class="btn-search" onclick="handleManualSearch()">查詢</button>
+        </div>
     </div>
 
     <div id="result-card">
-        <div class="res-header" id="res-id">載入中...</div>
+        <div class="res-header" id="res-id"></div>
         <div id="info-list"></div>
         <button class="btn-reload" onclick="resetScanner()">重新掃描</button>
     </div>
 
 <script>
-// --- 請確保此處網址正確 (Google Sheets 發佈為 CSV 的網址) ---
+// --- 設定區域 ---
 const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQXRUvH5sxOhyAX7MNM7R7WqmdfGOkbBHeCRclGPZLyU17t7MJgQy7ctwAOR-tNH59SoEzib_I-9uwP/pub?output=csv";
 
 let inventory = [];
 let html5QrCode;
 
-// 1. 載入資料
+// 1. 初始化資料抓取 (加入 Cache-Busting 避免抓到舊資料)
 function loadData() {
-    Papa.parse(CSV_URL, {
+    const finalUrl = CSV_URL + "&t=" + new Date().getTime();
+    
+    Papa.parse(finalUrl, {
         download: true,
         header: true,
         skipEmptyLines: true,
@@ -86,55 +97,55 @@ function loadData() {
             inventory = results.data;
             const b = document.getElementById('status-bar');
             if (inventory.length > 0) {
-                b.innerText = `✅ 系統就緒 (共 ${inventory.length} 筆)`;
+                b.innerText = `✅ 系統就緒 (${inventory.length} 筆庫存)`;
                 b.className = "success";
             } else {
-                b.innerText = "⚠️ 讀取成功但無資料";
-                b.className = "error";
+                showError("⚠️ 資料庫內容為空");
             }
         },
         error: function(err) {
-            console.error("CSV Load Error:", err);
-            const b = document.getElementById('status-bar');
-            b.innerText = "❌ 數據連線失敗 (請檢查發佈設定)";
-            b.className = "error";
-            alert("資料讀取失敗！請確認 Google 表格已『發佈到網路』並選擇『CSV』格式。");
+            showError("❌ 數據連線失敗 (請檢查發佈設定)");
         }
     });
 }
 
-// 2. 搜尋與顯示
+function showError(msg) {
+    const b = document.getElementById('status-bar');
+    b.innerText = msg;
+    b.className = "error";
+}
+
+// 2. 搜尋與顯示邏輯
 function searchAndShow(id) {
     if (!id) return;
     const tid = id.trim().toUpperCase();
     
-    // 全域搜尋匹配
+    // 模糊匹配：檢查每一列的所有內容
     const item = inventory.find(row => 
         Object.values(row).some(v => String(v).trim().toUpperCase() === tid)
     );
 
     if (item) {
-        if (navigator.vibrate) navigator.vibrate(50);
+        if (navigator.vibrate) navigator.vibrate(70); // 成功震動
         
-        // 停止相機以節省電力
-        if (html5QrCode) {
-            html5QrCode.stop().catch(err => console.log(err));
+        // 停止掃描
+        if (html5QrCode && html5QrCode.getState() === 2) {
+            html5QrCode.stop();
         }
 
-        document.getElementById('res-id').innerText = tid;
+        document.getElementById('res-id').innerText = "ID: " + tid;
         const list = document.getElementById('info-list');
         list.innerHTML = Object.entries(item).map(([k, v]) => `
             <div class="info-row">
                 <span class="label">${k}</span>
-                <span class="value">${v || "-"}</span>
+                <span class="value">${v || "無資料"}</span>
             </div>
         `).join('');
 
-        document.getElementById('reader-container').style.display = 'none';
-        document.getElementById('manual-area').style.display = 'none';
+        document.getElementById('main-ui').style.display = 'none';
         document.getElementById('result-card').style.display = 'block';
     } else {
-        alert("找不到此編號: " + tid);
+        alert("查無此資料: " + tid);
     }
 }
 
@@ -143,40 +154,45 @@ function handleManualSearch() {
     searchAndShow(val);
 }
 
-// 3. 初始化相機
-function startScanner() {
+// 3. 相機控制 (優化權限請求)
+async function startScanner() {
     html5QrCode = new Html5Qrcode("reader");
-    const config = { fps: 15, qrbox: { width: 250, height: 250 } };
-    
-    html5QrCode.start(
-        { facingMode: "environment" }, 
-        config, 
-        (decodedText) => {
-            searchAndShow(decodedText);
+    const config = { 
+        fps: 20, 
+        qrbox: (viewfinderWidth, viewfinderHeight) => {
+            return { width: viewfinderWidth * 0.7, height: viewfinderWidth * 0.7 };
         }
-    ).catch(err => {
-        console.error("Camera Error:", err);
-        // 如果權限被拒絕
+    };
+    
+    try {
+        await html5QrCode.start(
+            { facingMode: "environment" }, 
+            config, 
+            (decodedText) => searchAndShow(decodedText)
+        );
+    } catch (err) {
+        console.error("相機啟動錯誤:", err);
         document.getElementById('reader').innerHTML = `
-            <div style="padding:40px; color:white; text-align:center;">
-                <p>無法存取相機</p>
-                <button onclick="location.reload()" style="background:#fff; color:#000; border:none; padding:10px 20px; border-radius:8px;">重試</button>
+            <div style="padding:60px; color:white; text-align:center;">
+                <p>📷 無法存取相機</p>
+                <small>請確保使用 Safari/Chrome 開啟並允許權限</small>
             </div>`;
-    });
+    }
 }
 
-// 4. 重置
+// 4. 重置狀態
 function resetScanner() {
     document.getElementById('result-card').style.display = 'none';
-    document.getElementById('reader-container').style.display = 'block';
-    document.getElementById('manual-area').style.display = 'flex';
+    document.getElementById('main-ui').style.display = 'block';
     document.getElementById('manual-id').value = "";
-    startScanner(); // 重新啟動相機
+    startScanner();
 }
 
-// 執行
-loadData();
-startScanner();
+// 啟動流程
+window.onload = () => {
+    loadData();
+    startScanner();
+};
 </script>
 </body>
 </html>
