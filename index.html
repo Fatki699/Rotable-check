@@ -3,72 +3,92 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Rotable Scanner Final</title>
+    <title>Tool ID Scanner</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
     <style>
         :root { --primary: #007aff; --success: #34c759; --danger: #ff3b30; }
         body { font-family: -apple-system, sans-serif; background: #f2f2f7; margin: 0; padding: 15px; }
-        #status-bar { text-align: center; padding: 14px; border-radius: 12px; margin-bottom: 15px; font-weight: bold; background: white; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        
+        /* 狀態顯示 */
+        #status-bar { 
+            text-align: center; padding: 14px; border-radius: 12px; margin-bottom: 15px; 
+            font-weight: bold; background: white; box-shadow: 0 2px 8px rgba(0,0,0,0.1); 
+        }
         .loading { border: 2px solid #8e8e93; color: #8e8e93; }
         .success { border: 2px solid var(--success); color: var(--success); }
         .error { border: 2px solid var(--danger); color: var(--danger); cursor: pointer; }
-        #reader { background: black; border-radius: 20px; overflow: hidden; width: 100%; min-height: 250px; }
+
+        /* 掃描區域 */
+        #reader-wrapper { background: #000; border-radius: 20px; overflow: hidden; position: relative; width: 100%; min-height: 250px; }
+        
         .controls { margin-top: 15px; display: flex; flex-direction: column; gap: 10px; }
+        .btn { padding: 15px; border-radius: 12px; border: none; font-weight: bold; color: white; cursor: pointer; font-size: 16px; }
+        .btn-blue { background: var(--primary); }
+        .btn-green { background: var(--success); }
+        
         .input-group { display: flex; gap: 8px; }
         input { flex: 1; padding: 15px; border: 2px solid #ddd; border-radius: 12px; font-size: 16px; }
-        .btn { padding: 15px; border: none; border-radius: 12px; font-weight: bold; color: white; cursor: pointer; }
-        .btn-blue { background: var(--primary); flex: 1; }
-        .btn-green { background: var(--success); }
-        #result-card { display: none; background: white; padding: 20px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
+
+        /* 結果顯示 */
+        #result-card { display: none; background: white; padding: 25px; border-radius: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
+        .res-header { color: var(--primary); font-size: 1.5rem; font-weight: bold; margin-bottom: 15px; border-bottom: 2px solid #f2f2f7; padding-bottom: 10px; }
         .info-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #eee; }
-        .label { color: #888; }
-        .value { font-weight: bold; }
+        .label { color: #888; font-size: 0.9rem; }
+        .value { font-weight: bold; text-align: right; }
     </style>
 </head>
 <body>
 
-<div id="status-bar" class="loading" onclick="loadData()">🔄 正在連線資料庫...</div>
+<div id="status-bar" class="loading" onclick="fetchData()">🔄 正在同步庫存數據...</div>
 
 <div id="main-ui">
-    <div id="reader"></div>
+    <div id="reader-wrapper"><div id="reader"></div></div>
+    
     <div class="controls">
+        <label class="btn btn-blue" style="text-align:center;">
+            <input type="file" id="file-input" accept="image/*" style="display:none" onchange="handleFile(this)">
+            📷 上傳相簿圖片辨識
+        </label>
+        
         <div class="input-group">
-            <label class="btn btn-blue" style="text-align:center;">
-                <input type="file" id="file-input" accept="image/*" style="display:none" onchange="handleFile(this)">
-                📷 上傳相簿圖片
-            </label>
-        </div>
-        <div class="input-group">
-            <input type="text" id="manual-id" placeholder="手動輸入 ID">
-            <button class="btn btn-green" onclick="searchAndShow(document.getElementById('manual-id').value)">查詢</button>
+            <input type="text" id="manual-id" placeholder="輸入 Rotable ID 或序號">
+            <button class="btn btn-green" onclick="search(document.getElementById('manual-id').value)">查詢</button>
         </div>
     </div>
 </div>
 
 <div id="result-card">
-    <h2 id="res-id" style="color:var(--primary); margin:0 0 15px 0;"></h2>
+    <div class="res-header" id="res-id"></div>
     <div id="info-list"></div>
-    <button class="btn btn-blue" style="width:100%; margin-top:20px;" onclick="resetAll()">重新掃描</button>
+    <button class="btn btn-blue" style="width:100%; margin-top:20px;" onclick="reset()">重新掃描</button>
 </div>
 
 <script>
-const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQXRUvH5sx0hyAX7MNM7R7WqmdfGOkbBHeCRclGPZLyU17t7MJgQy7ctwAOR-tNH59SoEzib_I-9uwP/pub?output=csv";
-let inventory = [];
-let scanner = new Html5Qrcode("reader");
+// --- 使用您的檔案 ID 進行強制導出 ---
+const SPREADSHEET_ID = "1nQkJu1Sl9Hi66QdVY8XqeZXG7yhgDKM5dlxb0lL4Zd4";
+const DATA_URL = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/export?format=csv`;
 
-// 1. 載入資料 (增加 Cache Buster 解決 Cookie 清除後的同步問題)
-function loadData() {
-    updateStatus("🔄 正在連線...", "loading");
-    Papa.parse(CSV_URL + "&nocache=" + Date.now(), {
-        download: true, header: true, skipEmptyLines: true,
-        complete: (r) => {
-            inventory = r.data;
-            if (inventory.length > 0) updateStatus(`✅ 系統就緒 (${inventory.length} 筆)`, "success");
-            else updateStatus("⚠️ 資料庫為空", "error");
-        },
-        error: () => updateStatus("❌ 連線失敗 (點此重試)", "error")
-    });
+let inventory = [];
+let html5QrCode = new Html5Qrcode("reader");
+
+// 1. 抓取資料
+async function fetchData() {
+    updateStatus("🔄 同步中...", "loading");
+    try {
+        const response = await fetch(DATA_URL + "&cachebust=" + Date.now());
+        const csvText = await response.text();
+        Papa.parse(csvText, {
+            header: true,
+            skipEmptyLines: true,
+            complete: (results) => {
+                inventory = results.data;
+                updateStatus(`✅ 系統就緒 (${inventory.length} 筆庫存)`, "success");
+            }
+        });
+    } catch (e) {
+        updateStatus("❌ 連線失敗 (點此重試)", "error");
+    }
 }
 
 function updateStatus(msg, cls) {
@@ -77,51 +97,58 @@ function updateStatus(msg, cls) {
 }
 
 // 2. 搜尋與顯示
-function searchAndShow(id) {
+function search(id) {
     if (!id) return;
-    const tid = id.trim().toUpperCase();
-    const item = inventory.find(row => Object.values(row).some(v => String(v).trim().toUpperCase() === tid));
+    const target = id.trim().toUpperCase();
     
+    // 全欄位比對 (搜尋 Rotable ID, Part Number, Serial Number 等)
+    const item = inventory.find(row => 
+        Object.values(row).some(v => String(v).trim().toUpperCase() === target)
+    );
+
     if (item) {
         if (navigator.vibrate) navigator.vibrate(50);
-        document.getElementById('res-id').innerText = "ID: " + tid;
+        html5QrCode.stop().catch(()=>{});
+        
+        document.getElementById('res-id').innerText = target;
         document.getElementById('info-list').innerHTML = Object.entries(item).map(([k,v]) => `
             <div class="info-row"><span class="label">${k}</span><span class="value">${v || "-"}</span></div>
         `).join('');
+        
         document.getElementById('main-ui').style.display = 'none';
         document.getElementById('result-card').style.display = 'block';
-        scanner.stop().catch(()=>{});
     } else {
-        alert("查無此編號: " + tid);
+        alert("找不到資料：" + target);
     }
 }
 
-// 3. 處理相簿圖片
+// 3. 圖片處理
 function handleFile(input) {
     if (input.files.length === 0) return;
     updateStatus("⌛ 辨識中...", "loading");
-    scanner.scanFile(input.files[0], true)
-        .then(res => searchAndShow(res))
-        .catch(err => {
+    html5QrCode.scanFile(input.files[0], true)
+        .then(res => search(res))
+        .catch(() => {
             updateStatus("❌ 辨識失敗", "error");
-            alert("圖片不清晰或查無條碼");
+            alert("無法讀取條碼，請確保圖片清晰");
         });
 }
 
-// 4. 初始化相機
-function startCam() {
-    scanner.start({ facingMode: "environment" }, { fps: 15, qrbox: 250 }, (res) => searchAndShow(res))
+// 4. 相機控制
+function startCamera() {
+    html5QrCode.start({ facingMode: "environment" }, { fps: 15, qrbox: 250 }, (res) => search(res))
     .catch(() => updateStatus("📷 相機啟動失敗", "error"));
 }
 
-function resetAll() {
+function reset() {
     document.getElementById('result-card').style.display = 'none';
     document.getElementById('main-ui').style.display = 'block';
-    startCam();
+    startCamera();
 }
 
-loadData();
-startCam();
+// 啟動
+fetchData();
+startCamera();
 </script>
 </body>
 </html>
