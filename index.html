@@ -9,105 +9,44 @@
     <style>
         body { font-family: -apple-system, sans-serif; background: #f2f2f7; margin: 0; padding: 15px; }
         .container { max-width: 500px; margin: auto; }
-        #status-bar { text-align: center; padding: 12px; border-radius: 10px; margin-bottom: 10px; font-weight: bold; background: white; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+        #status-bar { text-align: center; padding: 12px; border-radius: 8px; margin-bottom: 10px; font-weight: bold; background: white; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
         .success { color: #34c759; border: 2px solid #34c759; }
         .error { color: #ff3b30; border: 2px solid #ff3b30; }
-        #reader { background: black; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
-        #result-card { display: none; background: white; padding: 20px; border-radius: 20px; margin-top: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
-        .id-title { color: #007aff; font-size: 1.4rem; margin: 0 0 15px 0; border-bottom: 2px solid #f2f2f7; padding-bottom: 10px; }
-        .info-row { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #f9f9f9; }
-        .label { color: #8e8e93; font-size: 0.9rem; font-weight: 500; }
-        .value { color: #1c1c1e; font-weight: 600; text-align: right; word-break: break-all; margin-left: 10px; }
-        button { width: 100%; padding: 18px; background: #007aff; color: white; border: none; border-radius: 14px; font-size: 1.1rem; font-weight: bold; margin-top: 20px; }
+        #reader { background: black; border-radius: 16px; overflow: hidden; }
+        #result-card { display: none; background: white; padding: 20px; border-radius: 16px; margin-top: 20px; box-shadow: 0 10px 20px rgba(0,0,0,0.1); }
+        .info-row { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #eee; }
+        .label { color: #888; font-size: 0.9rem; }
+        .value { color: #000; font-weight: 500; text-align: right; }
+        button { width: 100%; padding: 16px; background: #007aff; color: white; border: none; border-radius: 12px; font-size: 1.1rem; font-weight: bold; margin-top: 10px; }
+        input { width: calc(100% - 30px); padding: 15px; border: 2px solid #ddd; border-radius: 12px; font-size: 1rem; margin-top: 15px; outline: none; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <div id="status-bar">🔄 正在連線數據庫...</div>
-    <div id="reader"></    <div style="margin: 15px 0; display: flex; gap: 8px;">
-        <input type="text" id="manual-id" placeholder="手動輸入 ID (例如: RO.87112)" 
-               style="flex: 1; padding: 12px; border: 2px solid #ddd; border-radius: 10px; font-size: 1rem; outline: none;">
-        <button onclick="manualSearch()" 
-                style="width: auto; margin: 0; padding: 0 20px; background: #34c759; border-radius: 10px;">
-            查詢
-        </button>
+    <div id="status-bar">🔄 正在連線數據...</div>
+    
+    <div id="reader"></div>
+
+    <div id="manual-area">
+        <input type="text" id="manual-id" placeholder="手動輸入編號 (例如: RO.87112)">
+        <button onclick="manualSearch()" style="background: #34c759;">查詢編號</button>
     </div>
-    ```
-
----
-
-### 下一步：還需要修改 Script 邏輯
-只貼上面的 HTML 雖然會出現框框，但按了沒反應。請再往下捲動到代碼的最末端，找到 `function onScanSuccess` 之後的內容，**直接將最後的整個 `<script>` 部分替換為以下內容**：
-
-```javascript
-<script>
-let CSV_URL = "你的CSV網址"; // 這裡記得保留你原本那串長網址
-let inventory = [];
-
-function loadData() {
-    Papa.parse(CSV_URL, {
-        download: true, header: true, skipEmptyLines: true,
-        complete: function(results) {
-            inventory = results.data;
-            document.getElementById('status-bar').innerText = `✅ 系統就緒 (已載入 ${inventory.length} 筆)`;
-            document.getElementById('status-bar').className = "success";
-        }
-    });
-}
-
-// 核心搜尋功能
-function searchAndShow(id) {
-    const targetID = id.trim().toUpperCase();
-    const item = inventory.find(row => {
-        return Object.values(row).some(val => String(val).trim().toUpperCase() === targetID);
-    });
-
-    if (item) {
-        html5QrcodeScanner.clear(); 
-        document.getElementById('res-id').innerText = targetID;
-        document.getElementById('res-pn').innerText = item["Part Number"] || "-";
-        document.getElementById('res-sn').innerText = item["Serial No"] || "-";
-        document.getElementById('res-loc').innerText = item["Location"] || "-";
-        document.getElementById('res-expiry').innerText = item["Expiry Date"] || "-";
-        document.getElementById('res-owner').innerText = item["Owner"] || "-";
-        
-        // 隱藏掃描器和輸入框
-        document.getElementById('reader').style.display = 'none';
-        document.getElementById('manual-id').parentElement.style.display = 'none';
-        document.getElementById('result-card').style.display = 'block';
-    } else {
-        alert("找不到編號: " + targetID);
-    }
-}
-
-// 掃描成功時呼叫
-function onScanSuccess(decodedText) {
-    searchAndShow(decodedText);
-}
-
-// 按下查詢按鈕時呼叫
-function manualSearch() {
-    const input = document.getElementById('manual-id').value;
-    if (input) searchAndShow(input);
-    else alert("請先輸入編號");
-}
-
-let html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 15, qrbox: 250 });
-html5QrcodeScanner.render(onScanSuccess);
-loadData();
-</script>
 
     <div id="result-card">
-        <h2 id="res-id" class="id-title"></h2>
-        <div id="details-list"></div>
-        <button onclick="location.reload()">掃描下一個</button>
+        <h2 id="res-id" style="color:#007aff; margin-top:0; border-bottom: 2px solid #f2f2f7; padding-bottom: 10px;"></h2>
+        <div class="info-row"><span class="label">Part Number</span><span id="res-pn" class="value"></span></div>
+        <div class="info-row"><span class="label">Serial No</span><span id="res-sn" class="value"></span></div>
+        <div class="info-row"><span class="label">Location</span><span id="res-loc" class="value"></span></div>
+        <div class="info-row"><span class="label">Expiry Date</span><span id="res-expiry" class="value"></span></div>
+        <div class="info-row"><span class="label">Owner</span><span id="res-owner" class="value"></span></div>
+        <button onclick="location.reload()">重新掃描</button>
     </div>
 </div>
 
 <script>
-// 使用你提供的最新正確連結
-const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQXRUvH5sx0hyAX7MNM7R7WqmdfGOkbBHeCRclGPZLyU17t7MJgQy7ctwAOR-tNH59SoEzib_I-9uwP/pub?output=csv";
+// --- 你的 Google Sheet CSV 連結 ---
+const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQXRUvH5sxOhyAX7MNM7R7WqmdfGOkbBHeCRclGPZLyU17t7MJgQy7ctwAOR-tNH59SoEzib_I-9uwP/pub?output=csv";
 
 let inventory = [];
 
@@ -119,63 +58,54 @@ function loadData() {
         complete: function(results) {
             inventory = results.data;
             const bar = document.getElementById('status-bar');
-            if (inventory.length > 0) {
-                bar.innerText = `✅ 系統就緒 (已載入 ${inventory.length} 筆)`;
-                bar.className = "success";
-            } else {
-                bar.innerText = "⚠️ 讀取成功但無資料，請檢查試算表內容";
-                bar.className = "error";
-            }
+            bar.innerText = `✅ 系統就緒 (已載入 ${inventory.length} 筆)`;
+            bar.className = "success";
         },
         error: function() {
-            document.getElementById('status-bar').innerText = "❌ 無法讀取資料，請檢查網路或發佈設定";
+            document.getElementById('status-bar').innerText = "❌ 數據讀取失敗";
             document.getElementById('status-bar').className = "error";
         }
     });
 }
 
-function onScanSuccess(decodedText) {
-    html5QrcodeScanner.clear();
-    const scancode = decodedText.trim().toUpperCase();
-    
-    // 全文搜尋：只要試算表任何一格包含這個編號就抓出來
+// 統一查詢邏輯
+function searchAndShow(id) {
+    const targetID = id.trim().toUpperCase();
     const item = inventory.find(row => {
-        return Object.values(row).some(val => String(val).trim().toUpperCase() === scancode);
+        return Object.values(row).some(val => String(val).trim().toUpperCase() === targetID);
     });
 
     if (item) {
-        document.getElementById('res-id').innerText = "編號: " + scancode;
-        const list = document.getElementById('details-list');
-        list.innerHTML = ""; // 清空
-
-        // 自動生成所有標題與對應內容
-        for (let [key, value] of Object.entries(item)) {
-            if (key && value && key.toLowerCase() !== "rotable id") {
-                list.innerHTML += `
-                    <div class="info-row">
-                        <span class="label">${key}</span>
-                        <span class="value">${value}</span>
-                    </div>`;
-            }
-        }
+        if(typeof html5QrcodeScanner !== 'undefined') html5QrcodeScanner.clear();
+        document.getElementById('res-id').innerText = targetID;
+        document.getElementById('res-pn').innerText = item["Part Number"] || "-";
+        document.getElementById('res-sn').innerText = item["Serial No"] || "-";
+        document.getElementById('res-loc').innerText = item["Location"] || "-";
+        document.getElementById('res-expiry').innerText = item["Expiry Date"] || "-";
+        document.getElementById('res-owner').innerText = item["Owner"] || "-";
 
         document.getElementById('reader').style.display = 'none';
+        document.getElementById('manual-area').style.display = 'none';
         document.getElementById('result-card').style.display = 'block';
     } else {
-        alert("找不到此編號: " + scancode);
-        location.reload();
+        alert("找不到編號: " + targetID);
     }
 }
 
-// 啟動掃描器
-let html5QrcodeScanner = new Html5QrcodeScanner("reader", { 
-    fps: 15, 
-    qrbox: 250,
-    aspectRatio: 1.0
-});
-html5QrcodeScanner.render(onScanSuccess);
+// 掃描回傳
+function onScanSuccess(decodedText) {
+    searchAndShow(decodedText);
+}
 
-// 執行載入資料
+// 按鈕點擊回傳
+function manualSearch() {
+    const val = document.getElementById('manual-id').value;
+    if (val) searchAndShow(val);
+    else alert("請輸入編號");
+}
+
+let html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 15, qrbox: 250 });
+html5QrcodeScanner.render(onScanSuccess);
 loadData();
 </script>
 
