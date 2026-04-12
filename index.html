@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Rotable Scanner Pro</title>
+    <title>Rotable Scanner Pro+</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
     <style>
         :root { --primary: #007aff; --success: #34c759; --danger: #ff3b30; --bg: #f2f2f7; }
         body { font-family: -apple-system, system-ui, sans-serif; background: var(--bg); margin: 0; padding: 15px; color: #1c1c1e; }
         
-        /* 狀態列：增加動畫感 */
+        /* 狀態列 */
         #status-bar { 
             text-align: center; padding: 14px; border-radius: 12px; 
             margin-bottom: 15px; font-weight: 600; background: white; 
@@ -24,18 +24,33 @@
         #reader-wrapper { 
             position: relative; background: #000; border-radius: 20px; 
             overflow: hidden; box-shadow: 0 8px 20px rgba(0,0,0,0.2);
-            min-height: 300px;
+            min-height: 280px; transition: height 0.3s;
         }
         #reader { width: 100%; }
 
-        /* 輸入與按鈕 */
-        .input-group { margin-top: 20px; display: flex; gap: 10px; }
-        input { 
+        /* 檔案上傳與輸入區域 */
+        .controls-group { margin-top: 20px; display: flex; flex-direction: column; gap: 10px; }
+        .file-input-group { display: flex; gap: 10px; }
+        
+        /* 自定義上傳按鈕樣式 */
+        .custom-file-upload {
+            flex: 1; padding: 15px; background: white; border: 2px solid #d1d1d6; 
+            border-radius: 14px; font-size: 16px; font-weight: 500;
+            color: #555; text-align: center; cursor: pointer;
+            transition: 0.2s;
+        }
+        .custom-file-upload:active { background: #e5e5e5; }
+        
+        .input-group { display: flex; gap: 10px; }
+        input[type="text"] { 
             flex: 1; padding: 15px; border: 2px solid #d1d1d6; 
             border-radius: 14px; font-size: 16px; transition: 0.2s;
         }
-        input:focus { border-color: var(--primary); outline: none; background: white; }
-        .btn-search { background: var(--success); color: white; border: none; padding: 0 25px; border-radius: 14px; font-weight: bold; }
+        input[type="text"]:focus { border-color: var(--primary); outline: none; background: white; }
+        
+        .btn { border: none; padding: 0 25px; border-radius: 14px; font-weight: bold; cursor: pointer; }
+        .btn-search { background: var(--success); color: white; }
+        .btn-file { background: white; color: var(--primary); border: 2px solid var(--primary); }
 
         /* 結果顯示 */
         #result-card { 
@@ -59,16 +74,25 @@
 </head>
 <body>
 
-    <div id="status-bar" class="loading">📡 正在同步 Google 資料...</div>
+    <div id="status-bar" class="loading">📡 資料同步中...</div>
 
     <div id="main-ui">
         <div id="reader-wrapper">
             <div id="reader"></div>
         </div>
 
-        <div class="input-group">
-            <input type="text" id="manual-id" placeholder="輸入序號或掃描條碼">
-            <button class="btn-search" onclick="handleManualSearch()">查詢</button>
+        <div class="controls-group">
+            <div class="file-input-group">
+                <label class="custom-file-upload">
+                    <input type="file" id="qr-input-file" accept="image/*" style="display:none;" onchange="handleFileUpload()">
+                    📷 上傳相簿圖片掃描
+                </label>
+            </div>
+
+            <div class="input-group">
+                <input type="text" id="manual-id" placeholder="手動輸入庫存 ID">
+                <button class="btn btn-search" onclick="handleManualSearch()">查詢</button>
+            </div>
         </div>
     </div>
 
@@ -80,16 +104,14 @@
 
 <script>
 // --- 設定區域 ---
-const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQXRUvH5sx0hyAX7MNM7R7WqmdfGOkbBHeCRclGPZLyU17t7MJgQy7ctwAOR-tNH59SoEzib_I-9uwP/pub?output=csv";
+const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQXRUvH5sxOhyAX7MNM7R7WqmdfGOkbBHeCRclGPZLyU17t7MJgQy7ctwAOR-tNH59SoEzib_I-9uwP/pub?output=csv";
 
 let inventory = [];
 let html5QrCode;
 
-// 1. 初始化資料抓取 (加入 Cache-Busting 避免抓到舊資料)
+// 1. 資料抓取
 function loadData() {
-    const finalUrl = CSV_URL + "&t=" + new Date().getTime();
-    
-    Papa.parse(finalUrl, {
+    Papa.parse(CSV_URL + "&t=" + new Date().getTime(), {
         download: true,
         header: true,
         skipEmptyLines: true,
@@ -100,19 +122,19 @@ function loadData() {
                 b.innerText = `✅ 系統就緒 (${inventory.length} 筆庫存)`;
                 b.className = "success";
             } else {
-                showError("⚠️ 資料庫內容為空");
+                showStatus("⚠️ 資料庫內容為空", "error");
             }
         },
         error: function(err) {
-            showError("❌ 數據連線失敗 (請檢查發佈設定)");
+            showStatus("❌ 資料連線失敗", "error");
         }
     });
 }
 
-function showError(msg) {
+function showStatus(msg, type) {
     const b = document.getElementById('status-bar');
     b.innerText = msg;
-    b.className = "error";
+    b.className = type;
 }
 
 // 2. 搜尋與顯示邏輯
@@ -120,15 +142,15 @@ function searchAndShow(id) {
     if (!id) return;
     const tid = id.trim().toUpperCase();
     
-    // 模糊匹配：檢查每一列的所有內容
+    // 模糊匹配 (全欄位搜尋)
     const item = inventory.find(row => 
         Object.values(row).some(v => String(v).trim().toUpperCase() === tid)
     );
 
     if (item) {
-        if (navigator.vibrate) navigator.vibrate(70); // 成功震動
+        if (navigator.vibrate) navigator.vibrate(70);
         
-        // 停止掃描
+        // 切換 UI，停止相機
         if (html5QrCode && html5QrCode.getState() === 2) {
             html5QrCode.stop();
         }
@@ -138,14 +160,14 @@ function searchAndShow(id) {
         list.innerHTML = Object.entries(item).map(([k, v]) => `
             <div class="info-row">
                 <span class="label">${k}</span>
-                <span class="value">${v || "無資料"}</span>
+                <span class="value">${v || "N/A"}</span>
             </div>
         `).join('');
 
         document.getElementById('main-ui').style.display = 'none';
         document.getElementById('result-card').style.display = 'block';
     } else {
-        alert("查無此資料: " + tid);
+        alert("找不到資料: " + tid);
     }
 }
 
@@ -154,13 +176,41 @@ function handleManualSearch() {
     searchAndShow(val);
 }
 
-// 3. 相機控制 (優化權限請求)
+// 3. 處理本地檔案上傳 (關鍵新增)
+function handleFileUpload() {
+    const fileInput = document.getElementById('qr-input-file');
+    if (fileInput.files.length === 0) return;
+    
+    // 如果相機正在運行，先停止
+    if (html5QrCode && html5QrCode.getState() === 2) {
+        html5QrCode.stop().then(() => {
+            processFile(fileInput.files[0]);
+        }).catch(err => console.log(err));
+    } else {
+        processFile(fileInput.files[0]);
+    }
+}
+
+// 圖片掃描與辨識
+function processFile(file) {
+    html5QrCode.scanFile(file, true) // 開啟 true 可進行 Code128/Code39 條碼解析
+    .then(decodedText => {
+        searchAndShow(decodedText);
+    })
+    .catch(err => {
+        console.error("圖片掃描失敗:", err);
+        alert("無法識別此圖片中的條碼 / QR Code。\n請確認圖片清晰，並只包含一個條碼。");
+    });
+}
+
+// 4. 相機控制
 async function startScanner() {
     html5QrCode = new Html5Qrcode("reader");
     const config = { 
         fps: 20, 
         qrbox: (viewfinderWidth, viewfinderHeight) => {
-            return { width: viewfinderWidth * 0.7, height: viewfinderWidth * 0.7 };
+            const minDim = Math.min(viewfinderWidth, viewfinderHeight);
+            return { width: minDim * 0.7, height: minDim * 0.7 };
         }
     };
     
@@ -171,24 +221,25 @@ async function startScanner() {
             (decodedText) => searchAndShow(decodedText)
         );
     } catch (err) {
-        console.error("相機啟動錯誤:", err);
+        // 如果權限拒絕
         document.getElementById('reader').innerHTML = `
             <div style="padding:60px; color:white; text-align:center;">
                 <p>📷 無法存取相機</p>
-                <small>請確保使用 Safari/Chrome 開啟並允許權限</small>
+                <button onclick="startScanner()" style="background:#fff; border:none; padding:8px 16px; border-radius:8px;">重試</button>
             </div>`;
     }
 }
 
-// 4. 重置狀態
+// 5. 重置狀態
 function resetScanner() {
     document.getElementById('result-card').style.display = 'none';
     document.getElementById('main-ui').style.display = 'block';
     document.getElementById('manual-id').value = "";
+    document.getElementById('qr-input-file').value = ""; // 清空檔案選擇器
     startScanner();
 }
 
-// 啟動流程
+// 啟動
 window.onload = () => {
     loadData();
     startScanner();
