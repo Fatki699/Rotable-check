@@ -12,13 +12,13 @@
         #status-bar { text-align: center; padding: 12px; border-radius: 8px; margin-bottom: 10px; font-weight: bold; background: white; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
         .success { color: #34c759; border: 2px solid #34c759; }
         .error { color: #ff3b30; border: 2px solid #ff3b30; }
-        #reader { background: black; border-radius: 16px; overflow: hidden; }
+        #reader { background: black; border-radius: 16px; overflow: hidden; margin-bottom: 10px; }
         #result-card { display: none; background: white; padding: 20px; border-radius: 16px; margin-top: 20px; box-shadow: 0 10px 20px rgba(0,0,0,0.1); }
         .info-row { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #eee; }
         .label { color: #888; font-size: 0.9rem; }
-        .value { color: #000; font-weight: 500; text-align: right; }
+        .value { color: #000; font-weight: 500; text-align: right; word-break: break-all; margin-left: 10px; flex: 1; }
         button { width: 100%; padding: 16px; background: #007aff; color: white; border: none; border-radius: 12px; font-size: 1.1rem; font-weight: bold; margin-top: 10px; }
-        input { width: calc(100% - 30px); padding: 15px; border: 2px solid #ddd; border-radius: 12px; font-size: 1rem; margin-top: 15px; outline: none; }
+        input { width: 100%; box-sizing: border-box; padding: 15px; border: 2px solid #ddd; border-radius: 12px; font-size: 1rem; margin-top: 5px; outline: none; }
     </style>
 </head>
 <body>
@@ -29,23 +29,19 @@
     <div id="reader"></div>
 
     <div id="manual-area">
-        <input type="text" id="manual-id" placeholder="手動輸入編號 (例如: RO.87112)">
+        <input type="text" id="manual-id" placeholder="手動輸入編號 (例如: RO.87113)">
         <button onclick="manualSearch()" style="background: #34c759;">查詢編號</button>
     </div>
 
     <div id="result-card">
         <h2 id="res-id" style="color:#007aff; margin-top:0; border-bottom: 2px solid #f2f2f7; padding-bottom: 10px;"></h2>
-        <div class="info-row"><span class="label">Part Number</span><span id="res-pn" class="value"></span></div>
-        <div class="info-row"><span class="label">Serial No</span><span id="res-sn" class="value"></span></div>
-        <div class="info-row"><span class="label">Location</span><span id="res-loc" class="value"></span></div>
-        <div class="info-row"><span class="label">Expiry Date</span><span id="res-expiry" class="value"></span></div>
-        <div class="info-row"><span class="label">Owner</span><span id="res-owner" class="value"></span></div>
+        <div id="info-list"></div>
         <button onclick="location.reload()">重新掃描</button>
     </div>
 </div>
 
 <script>
-// --- 你的 Google Sheet CSV 連結 ---
+// --- 這裡請貼上你重新獲取的 CSV 網址 ---
 const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQXRUvH5sxOhyAX7MNM7R7WqmdfGOkbBHeCRclGPZLyU17t7MJgQy7ctwAOR-tNH59SoEzib_I-9uwP/pub?output=csv";
 
 let inventory = [];
@@ -58,31 +54,47 @@ function loadData() {
         complete: function(results) {
             inventory = results.data;
             const bar = document.getElementById('status-bar');
-            bar.innerText = `✅ 系統就緒 (已載入 ${inventory.length} 筆)`;
-            bar.className = "success";
+            if (inventory.length > 0) {
+                bar.innerText = `✅ 系統就緒 (已載入 ${inventory.length} 筆)`;
+                bar.className = "success";
+            } else {
+                bar.innerText = "⚠️ 讀取成功但無資料，請檢查試算表內容";
+                bar.className = "error";
+            }
         },
         error: function() {
-            document.getElementById('status-bar').innerText = "❌ 數據讀取失敗";
+            document.getElementById('status-bar').innerText = "❌ 數據連線失敗，請檢查網路或網址";
             document.getElementById('status-bar').className = "error";
         }
     });
 }
 
-// 統一查詢邏輯
 function searchAndShow(id) {
     const targetID = id.trim().toUpperCase();
+    if (!targetID) return;
+
+    // 強化搜尋：只要任何一個欄位匹配到 ID 就顯示
     const item = inventory.find(row => {
         return Object.values(row).some(val => String(val).trim().toUpperCase() === targetID);
     });
 
     if (item) {
-        if(typeof html5QrcodeScanner !== 'undefined') html5QrcodeScanner.clear();
+        if(typeof html5QrcodeScanner !== 'undefined') {
+            html5QrcodeScanner.clear().catch(e => console.log(e));
+        }
+        
         document.getElementById('res-id').innerText = targetID;
-        document.getElementById('res-pn').innerText = item["Part Number"] || "-";
-        document.getElementById('res-sn').innerText = item["Serial No"] || "-";
-        document.getElementById('res-loc').innerText = item["Location"] || "-";
-        document.getElementById('res-expiry').innerText = item["Expiry Date"] || "-";
-        document.getElementById('res-owner').innerText = item["Owner"] || "-";
+        const infoList = document.getElementById('info-list');
+        infoList.innerHTML = ""; // 清空舊內容
+
+        // 自動動態生成所有欄位，不需要手動指定標題
+        for (const [key, value] of Object.entries(item)) {
+            if (key.toLowerCase().includes("id")) continue; // 跳過 ID 欄位重複顯示
+            const row = document.createElement('div');
+            row.className = "info-row";
+            row.innerHTML = `<span class="label">${key}</span><span class="value">${value || "-"}</span>`;
+            infoList.appendChild(row);
+        }
 
         document.getElementById('reader').style.display = 'none';
         document.getElementById('manual-area').style.display = 'none';
@@ -92,12 +104,10 @@ function searchAndShow(id) {
     }
 }
 
-// 掃描回傳
 function onScanSuccess(decodedText) {
     searchAndShow(decodedText);
 }
 
-// 按鈕點擊回傳
 function manualSearch() {
     const val = document.getElementById('manual-id').value;
     if (val) searchAndShow(val);
