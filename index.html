@@ -8,60 +8,58 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
     <style>
         :root { --primary: #007aff; --success: #34c759; --danger: #ff3b30; --warning: #ff9500; --bg: #f2f2f7; }
-        body { font-family: -apple-system, sans-serif; background: var(--bg); margin: 0; padding: 15px; }
+        body { font-family: -apple-system, sans-serif; background: var(--bg); margin: 0; padding: 10px; }
         
-        /* 狀態列 */
         #status-bar { 
-            text-align: center; padding: 14px; border-radius: 12px; margin-bottom: 15px; 
-            font-weight: bold; background: white; box-shadow: 0 2px 8px rgba(0,0,0,0.05); 
+            text-align: center; padding: 12px; border-radius: 12px; margin-bottom: 10px; 
+            font-weight: bold; background: white; box-shadow: 0 2px 8px rgba(0,0,0,0.05); font-size: 14px;
         }
         .loading { color: #8e8e93; border: 1px solid #d1d1d6; }
         .success { color: var(--success); border: 1px solid var(--success); }
         .error { color: var(--danger); border: 1px solid var(--danger); }
 
-        /* 掃描區域 */
+        /* 縮短後的掃描區域 */
         #reader-wrapper { 
-            background: #2c2c2e; border-radius: 20px; overflow: hidden; 
-            position: relative; width: 100%; min-height: 250px;
+            background: #2c2c2e; border-radius: 16px; overflow: hidden; 
+            position: relative; width: 100%; 
+            min-height: 170px; /* 高度縮短 */
             display: flex; align-items: center; justify-content: center;
         }
         #reader { width: 100%; }
         #camera-placeholder { position: absolute; color: #636366; text-align: center; }
 
-        /* 控制按鈕 */
-        .controls { margin-top: 20px; display: flex; flex-direction: column; gap: 12px; }
-        .btn { padding: 16px; border-radius: 14px; border: none; font-weight: 600; color: white; cursor: pointer; font-size: 16px; transition: 0.2s; }
+        .controls { margin-top: 15px; display: flex; flex-direction: column; gap: 10px; }
+        .btn { padding: 14px; border-radius: 12px; border: none; font-weight: 600; color: white; cursor: pointer; font-size: 16px; }
         .btn:active { opacity: 0.7; }
         .btn-blue { background: var(--primary); }
         .btn-green { background: var(--success); }
         .btn-red { background: var(--danger); }
         
         .input-group { display: flex; gap: 8px; }
-        input { flex: 1; padding: 15px; border: 1px solid #d1d1d6; border-radius: 12px; font-size: 16px; outline: none; }
+        input { flex: 1; padding: 14px; border: 1px solid #d1d1d6; border-radius: 12px; font-size: 16px; outline: none; }
 
-        /* 結果顯示 */
-        #result-card { display: none; background: white; padding: 25px; border-radius: 24px; box-shadow: 0 10px 40px rgba(0,0,0,0.1); }
-        .res-header { color: var(--primary); font-size: 1.4rem; font-weight: 800; margin-bottom: 15px; border-bottom: 1px solid #eee; padding-bottom: 10px; }
-        .info-row { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #f9f9f9; align-items: center; }
-        .label { color: #8e8e93; font-size: 0.9rem; flex-shrink: 0; }
-        .value { font-weight: 600; text-align: right; word-break: break-all; margin-left: 10px; }
+        #result-card { display: none; background: white; padding: 20px; border-radius: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.1); }
+        .res-header { color: var(--primary); font-size: 1.3rem; font-weight: 800; margin-bottom: 12px; border-bottom: 1px solid #eee; padding-bottom: 8px; }
+        .info-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #f9f9f9; align-items: center; }
+        .label { color: #8e8e93; font-size: 0.85rem; flex-shrink: 0; }
+        .value { font-weight: 600; text-align: right; word-break: break-all; margin-left: 10px; font-size: 0.95rem; }
     </style>
 </head>
 <body>
 
-<div id="status-bar" class="loading" onclick="fetchData()">🔄 正在同步庫存數據...</div>
+<div id="status-bar" class="loading" onclick="fetchData()">🔄 同步庫存數據中...</div>
 
 <div id="main-ui">
     <div id="reader-wrapper">
         <div id="camera-placeholder">
-            <span style="font-size: 40px;">📷</span>
-            <p>相機已關閉</p>
+            <span style="font-size: 30px;">📷</span>
+            <p style="margin: 5px 0 0 0; font-size: 14px;">相機預覽區</p>
         </div>
         <div id="reader"></div>
     </div>
     
     <div class="controls">
-        <div style="display: flex; gap: 10px;">
+        <div style="display: flex; gap: 8px;">
             <button id="start-btn" class="btn btn-green" style="flex: 1;" onclick="startCamera()">啟動相機掃描</button>
             <button id="stop-btn" class="btn btn-red" style="flex: 1; display: none;" onclick="stopCamera()">關閉相機</button>
         </div>
@@ -71,7 +69,7 @@
             <button class="btn btn-blue" onclick="search(document.getElementById('manual-id').value)">查詢</button>
         </div>
 
-        <label class="btn btn-blue" style="text-align:center; background: #5856d6;">
+        <label class="btn btn-blue" style="text-align:center; background: #5856d6; font-size: 14px; padding: 10px;">
             <input type="file" id="file-input" accept="image/*" style="display:none" onchange="handleFile(this)">
             🖼️ 從相簿辨識圖片
         </label>
@@ -81,18 +79,18 @@
 <div id="result-card">
     <div class="res-header">🔍 掃描結果</div>
     <div id="info-list"></div>
-    <button class="btn btn-blue" style="width:100%; margin-top:20px;" onclick="reset()">重新掃描</button>
+    <button class="btn btn-blue" style="width:100%; margin-top:15px;" onclick="reset()">重新掃描</button>
 </div>
 
 <script>
 const SPREADSHEET_ID = "1nQkJu1Sl9Hi66QdVY8XqeZXG7yhgDKM5dlxb0lL4Zd4";
 const DATA_URL = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/export?format=csv`;
 
-// 指定顯示順序
+// 根據截圖修正後的顯示欄位
 const DISPLAY_FIELDS = [
     "Rotable ID",
-    "Part Number",
-    "Serial Number",
+    "Part Number", // 如果表格標頭是 Part Numb，請手動改為 "Part Numb"
+    "Serial No",   // 已修正：從 Serial Number 改為 Serial No
     "Expiry Date",
     "Store",
     "Location"
@@ -124,37 +122,24 @@ function updateStatus(msg, cls) {
     b.innerText = msg; b.className = cls;
 }
 
-// 日期格式化與邏輯判斷 (DD/MMM/YYYY)
 function getStyledDateHTML(dateStr) {
-    if (!dateStr || dateStr === "-" || dateStr.toLowerCase() === "nan") {
-        return '<span class="value">-</span>';
-    }
-
+    if (!dateStr || dateStr === "-" || dateStr === "" || dateStr.toLowerCase() === "nan") return '<span class="value">-</span>';
     const expiryDate = new Date(dateStr);
     if (isNaN(expiryDate.getTime())) return `<span class="value">${dateStr}</span>`;
-
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const diffTime = expiryDate - today;
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
+    const diffDays = Math.ceil((expiryDate - today) / (1000 * 60 * 60 * 24));
     const months = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
     const formatted = `${String(expiryDate.getDate()).padStart(2, '0')}/${months[expiryDate.getMonth()]}/${expiryDate.getFullYear()}`;
-
-    let color = "#1c1c1e"; // 預設黑
-    if (diffDays < 0) {
-        color = "var(--danger)"; // 過期紅
-    } else if (diffDays < 30) {
-        color = "var(--warning)"; // 30天內橙
-    }
-
+    let color = "#1c1c1e";
+    if (diffDays < 0) color = "var(--danger)";
+    else if (diffDays < 30) color = "var(--warning)";
     return `<span class="value" style="color: ${color}; font-weight: bold;">${formatted}</span>`;
 }
 
 function search(id) {
     if (!id) return;
     const target = id.trim().toUpperCase();
-    
     const item = inventory.find(row => 
         Object.values(row).some(v => String(v).trim().toUpperCase() === target)
     );
@@ -162,13 +147,14 @@ function search(id) {
     if (item) {
         if (navigator.vibrate) navigator.vibrate(50);
         stopCamera();
-
         const html = DISPLAY_FIELDS.map(field => {
-            const val = item[field] || "-";
-            const content = (field === "Expiry Date") ? getStyledDateHTML(val) : `<span class="value">${val}</span>`;
+            let val = item[field];
+            // 處理 Part Number 容錯 (有時標頭會被截斷)
+            if (field === "Part Number" && val === undefined) val = item["Part Numb"];
+            
+            const content = (field === "Expiry Date") ? getStyledDateHTML(val) : `<span class="value">${val || "-"}</span>`;
             return `<div class="info-row"><span class="label">${field}</span>${content}</div>`;
         }).join('');
-
         document.getElementById('info-list').innerHTML = html;
         document.getElementById('main-ui').style.display = 'none';
         document.getElementById('result-card').style.display = 'block';
@@ -181,15 +167,18 @@ async function startCamera() {
     document.getElementById('camera-placeholder').style.display = 'none';
     document.getElementById('start-btn').style.display = 'none';
     document.getElementById('stop-btn').style.display = 'block';
-    
     try {
         await html5QrCode.start(
             { facingMode: "environment" }, 
-            { fps: 15, qrbox: 250 }, 
+            { 
+                fps: 15, 
+                qrbox: { width: 220, height: 120 }, // 配合長方形調整掃描框
+                aspectRatio: 1.777778 // 16:9 比例，減少垂直高度
+            }, 
             (res) => search(res)
         );
     } catch (err) {
-        updateStatus("📷 相機啟動失敗", "error");
+        updateStatus("📷 啟動失敗", "error");
         stopCamera();
     }
 }
@@ -206,13 +195,12 @@ function handleFile(input) {
     updateStatus("⌛ 辨識中...", "loading");
     html5QrCode.scanFile(input.files[0], true)
         .then(res => search(res))
-        .catch(() => alert("無法辨識，請確保圖片清晰"));
+        .catch(() => alert("辨識失敗"));
 }
 
 function reset() {
     document.getElementById('result-card').style.display = 'none';
     document.getElementById('main-ui').style.display = 'block';
-    document.getElementById('manual-id').value = '';
 }
 
 fetchData();
