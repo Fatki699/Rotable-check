@@ -7,7 +7,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
     <style>
-        :root { --primary: #007aff; --success: #34c759; --danger: #ff3b30; --bg: #f2f2f7; }
+        :root { --primary: #007aff; --success: #34c759; --danger: #ff3b30; --warning: #ff9500; --bg: #f2f2f7; }
         body { font-family: -apple-system, sans-serif; background: var(--bg); margin: 0; padding: 15px; }
         
         /* 狀態列 */
@@ -19,18 +19,16 @@
         .success { color: var(--success); border: 1px solid var(--success); }
         .error { color: var(--danger); border: 1px solid var(--danger); }
 
-        /* 掃描區域容器 */
+        /* 掃描區域 */
         #reader-wrapper { 
             background: #2c2c2e; border-radius: 20px; overflow: hidden; 
             position: relative; width: 100%; min-height: 250px;
             display: flex; align-items: center; justify-content: center;
         }
         #reader { width: 100%; }
-        #camera-placeholder { 
-            position: absolute; color: #636366; text-align: center; 
-        }
+        #camera-placeholder { position: absolute; color: #636366; text-align: center; }
 
-        /* 按鈕與控制 */
+        /* 控制按鈕 */
         .controls { margin-top: 20px; display: flex; flex-direction: column; gap: 12px; }
         .btn { padding: 16px; border-radius: 14px; border: none; font-weight: 600; color: white; cursor: pointer; font-size: 16px; transition: 0.2s; }
         .btn:active { opacity: 0.7; }
@@ -41,12 +39,12 @@
         .input-group { display: flex; gap: 8px; }
         input { flex: 1; padding: 15px; border: 1px solid #d1d1d6; border-radius: 12px; font-size: 16px; outline: none; }
 
-        /* 結果卡片 */
+        /* 結果顯示 */
         #result-card { display: none; background: white; padding: 25px; border-radius: 24px; box-shadow: 0 10px 40px rgba(0,0,0,0.1); }
         .res-header { color: var(--primary); font-size: 1.4rem; font-weight: 800; margin-bottom: 15px; border-bottom: 1px solid #eee; padding-bottom: 10px; }
-        .info-row { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #f9f9f9; }
-        .label { color: #8e8e93; font-size: 0.9rem; }
-        .value { font-weight: 600; text-align: right; }
+        .info-row { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #f9f9f9; align-items: center; }
+        .label { color: #8e8e93; font-size: 0.9rem; flex-shrink: 0; }
+        .value { font-weight: 600; text-align: right; word-break: break-all; margin-left: 10px; }
     </style>
 </head>
 <body>
@@ -69,13 +67,13 @@
         </div>
 
         <div class="input-group">
-            <input type="text" id="manual-id" placeholder="輸入 Rotable ID 或序號">
+            <input type="text" id="manual-id" placeholder="輸入 ID 或序號">
             <button class="btn btn-blue" onclick="search(document.getElementById('manual-id').value)">查詢</button>
         </div>
 
         <label class="btn btn-blue" style="text-align:center; background: #5856d6;">
             <input type="file" id="file-input" accept="image/*" style="display:none" onchange="handleFile(this)">
-            🖼️ 從相簿辨識條碼
+            🖼️ 從相簿辨識圖片
         </label>
     </div>
 </div>
@@ -90,14 +88,23 @@
 const SPREADSHEET_ID = "1nQkJu1Sl9Hi66QdVY8XqeZXG7yhgDKM5dlxb0lL4Zd4";
 const DATA_URL = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/export?format=csv`;
 
+// 指定顯示順序
+const DISPLAY_FIELDS = [
+    "Rotable ID",
+    "Part Number",
+    "Serial Number",
+    "Expiry Date",
+    "Store",
+    "Location"
+];
+
 let inventory = [];
 let html5QrCode = new Html5Qrcode("reader");
 
-// 1. 獲取資料
 async function fetchData() {
     updateStatus("🔄 同步中...", "loading");
     try {
-        const response = await fetch(DATA_URL + "&t=" + Date.now());
+        const response = await fetch(`${DATA_URL}&cachebust=${Date.now()}`);
         const csvText = await response.text();
         Papa.parse(csvText, {
             header: true,
@@ -117,44 +124,33 @@ function updateStatus(msg, cls) {
     b.innerText = msg; b.className = cls;
 }
 
-// 2. 啟動相機
-async function startCamera() {
-    document.getElementById('camera-placeholder').style.display = 'none';
-    document.getElementById('start-btn').style.display = 'none';
-    document.getElementById('stop-btn').style.display = 'block';
-    
-    const config = { 
-        fps: 15, 
-        qrbox: { width: 250, height: 250 },
-        aspectRatio: 1.0 
-    };
-
-    try {
-        await html5QrCode.start({ facingMode: "environment" }, config, (res) => {
-            stopCamera(); // 掃描成功後自動關閉
-            search(res);
-        });
-    } catch (err) {
-        updateStatus("📷 無法開啟相機", "error");
-        stopCamera();
+// 日期格式化與邏輯判斷 (DD/MMM/YYYY)
+function getStyledDateHTML(dateStr) {
+    if (!dateStr || dateStr === "-" || dateStr.toLowerCase() === "nan") {
+        return '<span class="value">-</span>';
     }
+
+    const expiryDate = new Date(dateStr);
+    if (isNaN(expiryDate.getTime())) return `<span class="value">${dateStr}</span>`;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const diffTime = expiryDate - today;
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    const months = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+    const formatted = `${String(expiryDate.getDate()).padStart(2, '0')}/${months[expiryDate.getMonth()]}/${expiryDate.getFullYear()}`;
+
+    let color = "#1c1c1e"; // 預設黑
+    if (diffDays < 0) {
+        color = "var(--danger)"; // 過期紅
+    } else if (diffDays < 30) {
+        color = "var(--warning)"; // 30天內橙
+    }
+
+    return `<span class="value" style="color: ${color}; font-weight: bold;">${formatted}</span>`;
 }
 
-// 3. 關閉相機
-async function stopCamera() {
-    try {
-        if (html5QrCode.getState() > 1) {
-            await html5QrCode.stop();
-        }
-    } catch (err) {
-        console.warn("停止相機時出現非預期狀況");
-    }
-    document.getElementById('camera-placeholder').style.display = 'block';
-    document.getElementById('start-btn').style.display = 'block';
-    document.getElementById('stop-btn').style.display = 'none';
-}
-
-// 4. 搜尋與顯示
 function search(id) {
     if (!id) return;
     const target = id.trim().toUpperCase();
@@ -165,16 +161,44 @@ function search(id) {
 
     if (item) {
         if (navigator.vibrate) navigator.vibrate(50);
-        document.getElementById('info-list').innerHTML = Object.entries(item).map(([k,v]) => `
-            <div class="info-row"><span class="label">${k}</span><span class="value">${v || "-"}</span></div>
-        `).join('');
-        
+        stopCamera();
+
+        const html = DISPLAY_FIELDS.map(field => {
+            const val = item[field] || "-";
+            const content = (field === "Expiry Date") ? getStyledDateHTML(val) : `<span class="value">${val}</span>`;
+            return `<div class="info-row"><span class="label">${field}</span>${content}</div>`;
+        }).join('');
+
+        document.getElementById('info-list').innerHTML = html;
         document.getElementById('main-ui').style.display = 'none';
         document.getElementById('result-card').style.display = 'block';
     } else {
         alert("找不到資料：" + target);
-        // 如果沒找到，建議重新開啟掃描或檢查輸入
     }
+}
+
+async function startCamera() {
+    document.getElementById('camera-placeholder').style.display = 'none';
+    document.getElementById('start-btn').style.display = 'none';
+    document.getElementById('stop-btn').style.display = 'block';
+    
+    try {
+        await html5QrCode.start(
+            { facingMode: "environment" }, 
+            { fps: 15, qrbox: 250 }, 
+            (res) => search(res)
+        );
+    } catch (err) {
+        updateStatus("📷 相機啟動失敗", "error");
+        stopCamera();
+    }
+}
+
+async function stopCamera() {
+    if (html5QrCode.getState() > 1) await html5QrCode.stop();
+    document.getElementById('camera-placeholder').style.display = 'block';
+    document.getElementById('start-btn').style.display = 'block';
+    document.getElementById('stop-btn').style.display = 'none';
 }
 
 function handleFile(input) {
@@ -182,15 +206,15 @@ function handleFile(input) {
     updateStatus("⌛ 辨識中...", "loading");
     html5QrCode.scanFile(input.files[0], true)
         .then(res => search(res))
-        .catch(() => alert("無法讀取條碼，請確保圖片清晰"));
+        .catch(() => alert("無法辨識，請確保圖片清晰"));
 }
 
 function reset() {
     document.getElementById('result-card').style.display = 'none';
     document.getElementById('main-ui').style.display = 'block';
+    document.getElementById('manual-id').value = '';
 }
 
-// 初始啟動僅同步資料，不自動開相機
 fetchData();
 </script>
 </body>
